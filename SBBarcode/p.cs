@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using Edward;
 using System.IO;
+using System.Windows.Forms;
 
 namespace SBBarcode
 {
@@ -19,6 +20,21 @@ namespace SBBarcode
 
         public static  RunTypeFlag RunType;
         public static int CamIndex = 0;
+
+        public static string IniFile = Application.StartupPath +@"\SysConfig.ini";
+
+        public static string SNFolder =Application.StartupPath + @"\SN";
+        public static string LeftAHWID = "";
+        public static string LeftBHWID = "";
+        public static string RightAHWID = "";
+        public static string RightBHWID = "";
+        public static string LeftASN = @"\LA";
+        public static string LeftBSN = @"\LB";
+        public static string RightASN = @"\RA";
+        public static string RightBSN = @"\RB";
+
+        public static string ArgStr = "";
+
         /// <summary>
         /// 
         /// </summary>

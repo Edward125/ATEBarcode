@@ -18,7 +18,8 @@ namespace SBBarcode
             if (args.Length > 0)
             {
 
-                p.CamIndex = Convert.ToInt16(args[0]);
+                //p.CamIndex = Convert.ToInt16(args[0]);
+                p.ArgStr = args[0].ToUpper();
                 try
                 {
                     p.RunType = p.RunTypeFlag.Auto;

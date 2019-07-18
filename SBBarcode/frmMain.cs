@@ -15,6 +15,7 @@ using DTKBarReaderLib;
 using System.Runtime.InteropServices;
 using Edward;
 using System.IO;
+using System.Management;
 
 
 
@@ -39,6 +40,11 @@ namespace SBBarcode
 
         BarcodeReader barReader = null;
 
+
+       
+
+        private string CurBar = "";
+        
 
 
         /// <summary>
@@ -70,28 +76,53 @@ namespace SBBarcode
             btnCapturePic.Enabled = false;
             txtImg.SetWatermark("Double Click here to select image file.");
 
-            if (!Directory.Exists("Pictures"))
-                Directory.CreateDirectory("Pictures");
-
-
 
             videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+
             if (videoDevices.Count > 0)
             {
-
-                for (int i = 0; i < videoDevices.Count ; i++)
+                for (int i = 0; i < videoDevices.Count; i++)
                 {
                     comboCam.Items.Add(videoDevices[i].Name);
                 }
 
                 comboCam.SelectedIndex = 0;
                 selectedDeviceIndex = 0;
-
-
             }
 
+            if (!Directory.Exists("Pictures"))
+                Directory.CreateDirectory("Pictures");
+
+
+  
+            if (!File.Exists(p.IniFile ))
+            {
+                //創建配置檔
+                createIniFile(p.IniFile);
+            }
+            //加載配置檔
+            loadConfigData(p.IniFile);
 
             DeleteLog();
+            if (!Directory.Exists(p.SNFolder))
+            {
+                Directory.CreateDirectory(p.SNFolder);
+            }
+            txtLeftAHWID.Text = p.LeftAHWID;
+            txtLeftBHWID.Text = p.LeftBHWID;
+            txtRightAHWID.Text = p.RightAHWID;
+            txtRightBHWID.Text = p.RightBHWID;
+            txtLeftASN.Text = p.LeftASN;
+            txtLeftBSN.Text = p.LeftBSN;
+            txtRightASN.Text = p.RightASN;
+            txtRightBSN.Text = p.RightBSN;
+
+           // MessageBox.Show(p.SNFolder);
+
+    
+
+            txtSNFolder.Text = p.SNFolder;
+          
             if (p.RunType == p.RunTypeFlag.Auto)
             {
                 if (p.CamIndex > videoDevices.Count-1)
@@ -100,17 +131,76 @@ namespace SBBarcode
                 }
                 else
                 {
-                    comboCam.SelectedIndex = p.CamIndex;
-                    selectedDeviceIndex = p.CamIndex;
 
-                    OpenCam();
-                    p.WriteLog("Auto Open Cam.");
-                    System.Threading.Thread.Sleep(1500);
-                    CapturePic();
-                    CloseCam();
-                    ReadBarcode();
-                    System.Threading.Thread.Sleep(500);
-                    p.WriteLog("Auto Run Exit.");
+
+                    if (p.ArgStr == "L")
+                    {
+
+                        //L1
+
+                        p.CamIndex = GetCamIndexByHwid(p.LeftAHWID);
+                        if (p.CamIndex > -1)
+                        {
+                            CurBar = "LA";
+                            comboCam.SelectedIndex = p.CamIndex;
+                            selectedDeviceIndex = p.CamIndex;
+                            OpenCam();
+                            p.WriteLog("Auto Open Cam Left A.");
+                            CapAndRead(CurBar);
+                        }
+                        else
+                            p.WriteLog("Left A Cam's HWID maybe wrong," + p.LeftAHWID);
+                        //L2
+                        p.CamIndex = GetCamIndexByHwid(p.LeftBHWID);
+                        if (p.CamIndex > -1)
+                        {
+                            CurBar = "LB";
+                            comboCam.SelectedIndex = p.CamIndex;
+                            selectedDeviceIndex = p.CamIndex;
+                            OpenCam();
+                            p.WriteLog("Auto Open Cam Left B.");
+                            CapAndRead(CurBar);
+                        }
+                        else
+                            p.WriteLog("Left B Cam's HWID maybe wrong," + p.LeftBHWID);
+                    }
+
+
+                    if (p.ArgStr == "R")
+                    {
+
+                        //R1
+
+                        p.CamIndex = GetCamIndexByHwid(p.RightAHWID);
+                        if (p.CamIndex > -1)
+                        {
+                            CurBar = "RA";
+                            comboCam.SelectedIndex = p.CamIndex;
+                            selectedDeviceIndex = p.CamIndex;
+                            OpenCam();
+                            p.WriteLog("Auto Open Cam Right A.");
+                            CapAndRead(CurBar);
+            
+                        }
+                        else
+                            p.WriteLog("Right A Cam's HWID maybe wrong," + p.RightAHWID);
+                        //R2
+                        p.CamIndex = GetCamIndexByHwid(p.RightBHWID);
+                        if (p.CamIndex > -1)
+                        {
+                            CurBar = "RB";
+                            comboCam.SelectedIndex = p.CamIndex;
+                            selectedDeviceIndex = p.CamIndex;
+                            OpenCam();
+                            p.WriteLog("Auto Open Cam Right B.");
+                            CapAndRead(CurBar);
+
+                        }
+                        else
+                            p.WriteLog("Right B Cam's HWID maybe wrong," + p.RightBHWID);
+
+                    }
+
                 }
 
 
@@ -124,6 +214,7 @@ namespace SBBarcode
         {
             OpenCam();
             p.WriteLog("Manual Open Cam.");
+
         }
 
         private void OpenCam()
@@ -157,6 +248,50 @@ namespace SBBarcode
             btnOpenCam.Enabled = false;
             btnCapturePic.Enabled = true;
             comboCam.Enabled = false;
+
+        }
+
+
+
+
+
+
+        private void OpenCam(p.RunTypeFlag runtype)
+        {
+            //实例化过滤类
+            //FilterCategory.VideoInputDevice视频输入设备类别。
+
+            //实例化下标
+
+            //实例化视频源抓取类
+            //videoDevices[selectedDeviceIndex].MonikerString   过滤器的名字的字符串。
+            videoSource = new VideoCaptureDevice(videoDevices[selectedDeviceIndex].MonikerString);//连接摄像头
+            //视频分辨设置
+            //该属性允许设置一个支持的视频分辨率
+            //相机。使用AForge.Video.DirectShow.VideoCaptureDevice.VideoCapabilities
+            //属性以获得支持的视频分辨率列表。
+            //在照相机开始生效之前必须设置好该属性。
+            //属性的默认值设置为null，这意味着默认的视频分辨率
+            //使用。
+            videoSource.VideoResolution = videoSource.VideoCapabilities[selectedDeviceIndex];
+            //把实例化好的videosource类赋值到VideoSourcePlayer控件的VideoSource属性
+            // vspxianshi.VideoSource = videoSource;
+            videoSourcePlayer1.VideoSource = videoSource;
+            //启动VideoSourcePlayer控件
+            //vspxianshi.Start();
+            videoSourcePlayer1.Start();
+            //这样就把摄像头的图像获取到了本地
+            System.Threading.Thread.Sleep(500);
+            UpdateMsg(lstMsg, "Open cam.");
+            btnCloseCam.Enabled = true;
+            btnOpenCam.Enabled = false;
+            btnCapturePic.Enabled = true;
+            comboCam.Enabled = false;
+            if (runtype == p.RunTypeFlag.Auto)
+            {
+                timerDelay.Enabled = true;
+                timerDelay.Start();
+            }
         }
 
         private void btnCloseCam_Click(object sender, EventArgs e)
@@ -197,6 +332,37 @@ namespace SBBarcode
                     //and save a new gif
                    // bm2.Save("001.jpg", ImageFormat.Jpeg);
                     //pbboxpot.ImageLocation = "001.jpg";
+
+
+                    //定义图片路径
+                    string filename = DateTime.Now.ToString("yyyyMMddHHmmss") + ".bmp";
+                    //创建图片
+                    bm2.Save(Environment.CurrentDirectory + @"\Pictures\" + filename, ImageFormat.Bmp);
+                    txtImg.Text = Environment.CurrentDirectory + @"\Pictures\" + filename;
+                    picCapture.ImageLocation = Environment.CurrentDirectory + @"\Pictures\" + filename;
+                    UpdateMsg(lstMsg, "capture " + filename);
+                    p.WriteLog("capture " + filename);
+                    CloseCam();
+                    switch (CurBar)
+                    {
+                        case "LA":
+                            ReadBarcode(p.LeftASN);
+                            break;
+                        case "LB":
+                            ReadBarcode(p.LeftBSN);
+                            break;
+                        case "RA":
+                            ReadBarcode(p.RightASN);
+                            break;
+                        case "RB":
+                            ReadBarcode(p.RightBSN);
+                            break;
+                        default:
+                            break;
+                    }
+                    //ReadBarcode(p.RightASN);
+
+
                 }
                 catch (Exception)
                 {
@@ -268,17 +434,18 @@ namespace SBBarcode
                 {
                     string result = string.Empty;
                     symbols.ForEach(s => result += "条码内容:" + s.Data + " 条码质量:" + s.Quality + Environment.NewLine);
-                  //  MessageBox.Show(result);
+                    //  MessageBox.Show(result);
 
-                    foreach (ZBar.Symbol  sym in symbols)
+                    foreach (ZBar.Symbol sym in symbols)
                     {
                         UpdateMsg(lstMsg, "条码内容:" + sym.Data + " 条码质量:" + sym.Quality);
                         p.WriteLog("MAC.txt", sym.Data);
-                       p. WriteLog("MAC:" + sym.Data + ",Quality:" + sym.Quality);
+                        p.WriteLog("MAC:" + sym.Data + ",Quality:" + sym.Quality);
                     }
-
-                  
-                    
+                }
+                else
+                {
+                    UpdateMsg(lstMsg, "一维码读取失败.");
                 }
             }
         }
@@ -335,7 +502,7 @@ namespace SBBarcode
         {
             if (!string.IsNullOrEmpty(txtImg.Text.Trim()))
             {
-                ScanBarCode(txtImg.Text.Trim());
+               // ScanBarCode(txtImg.Text.Trim());
 
                 barReader = new BarcodeReader();
                 // set barcode types to read 
@@ -357,13 +524,49 @@ namespace SBBarcode
                     {
                         Barcode barcode = barReader.Barcodes.get_Item(i);
                         UpdateMsg(lstMsg, barcode.BarcodeString);
-                        p.WriteLog("SN.txt", barcode.BarcodeString);
+                       // p.WriteLog(p.SNFolder + p.SNFile , barcode.BarcodeString);
                         p.WriteLog("SN:" + barcode.BarcodeString);
                     }
                 }
 
             }
         }
+
+        private void ReadBarcode(string  snfile)
+        {
+            if (!string.IsNullOrEmpty(txtImg.Text.Trim()))
+            {
+                // ScanBarCode(txtImg.Text.Trim());
+
+                barReader = new BarcodeReader();
+                // set barcode types to read 
+                barReader.BarcodeTypes = BarcodeTypeEnum.BT_DataMatrix;
+                // define expected barcode orientations
+                barReader.BarcodeOrientation = BarcodeOrientationEnum.BO_All;
+                // the following values are default values (for TM_Multiple only)
+                // for example, if barReader.Threshold = 128, 
+                //      then the follwong thresholds will be used 64,80,96,112,128,144,160,176,192
+                barReader.ThresholdStep = 16;
+                barReader.ThresholdCount = 8;
+                barReader.ReadFromFile(txtImg.Text.Trim());
+
+                if (barReader.Barcodes.Count == 0)
+                    UpdateMsg(lstMsg, "No barcodes found");
+                else
+                {
+                    for (int i = 0; i < barReader.Barcodes.Count; i++)
+                    {
+                        Barcode barcode = barReader.Barcodes.get_Item(i);
+                        UpdateMsg(lstMsg, barcode.BarcodeString);
+                         p.WriteLog(p.SNFolder + snfile  , barcode.BarcodeString);
+                        p.WriteLog("SN:" + barcode.BarcodeString);
+                    }
+                }
+
+            }
+        }
+
+
         private void txtImg_DoubleClick(object sender, EventArgs e)
         {
             OpenFileDialog open = new OpenFileDialog();
@@ -415,12 +618,237 @@ namespace SBBarcode
                 File.Delete("MAC.txt");
             if (File.Exists("SN.txt"))
                 File.Delete("SN.txt");
+            if (File.Exists(p.SNFolder + p.LeftASN))
+                File.Delete(p.SNFolder + p.LeftASN);
+            if (File.Exists(p.SNFolder + p.LeftBSN))
+                File.Delete(p.SNFolder + p.LeftBSN);
+            if (File.Exists(p.SNFolder + p.RightASN))
+                File.Delete(p.SNFolder + p.RightASN);
+            if (File.Exists(p.SNFolder + p.RightBSN))
+                File.Delete(p.SNFolder + p.RightBSN);
 
         }
 
         private void comboCam_SelectedIndexChanged(object sender, EventArgs e)
         {
-            selectedDeviceIndex = 0;
+            selectedDeviceIndex = comboCam.SelectedIndex;
+            string str = videoDevices[selectedDeviceIndex].MonikerString.ToUpper();
+            int i1st = str.LastIndexOf('?');
+            int ilast = str.LastIndexOf('{');
+            txtHWID.Text = str.Substring(i1st + 2, ilast- i1st - 2);
+        }
+
+
+        /// <summary>
+        /// 創建ini配置檔并加載初始化值
+        /// </summary>
+        /// <param name="inifilepath">配置檔地址</param>
+        /// <returns></returns>
+        private void createIniFile(string inifilepath)
+        {
+            FileStream fs = File.Create(inifilepath);
+            fs.Close();
+            IniFile.IniWriteValue("SysConfig", "SysVersion", ProductVersion, inifilepath);
+            IniFile.IniWriteValue("SysConfig", "SNFolder", p.SNFolder, inifilepath);
+            IniFile.IniWriteValue("SysConfig", "LeftAHWID", p.LeftAHWID, inifilepath);
+            IniFile.IniWriteValue("SysConfig", "LeftBHWID", p.LeftBHWID, inifilepath);
+            IniFile.IniWriteValue("SysConfig", "RightAHWID", p.RightAHWID , inifilepath);
+            IniFile.IniWriteValue("SysConfig", "RightBHWID", p.RightBHWID , inifilepath);
+            IniFile.IniWriteValue("SysConfig", "LeftASN", p.LeftASN, inifilepath);
+            IniFile.IniWriteValue("SysConfig", "LeftBSN", p.LeftBSN, inifilepath);
+            IniFile.IniWriteValue("SysConfig", "RightASN", p.RightASN, inifilepath);
+            IniFile.IniWriteValue("SysConfig", "RightBSN", p.RightBSN, inifilepath);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="inifilepath"></param>
+        private void loadConfigData(string inifilepath)
+        {
+           p.SNFolder  = IniFile.IniReadValue("SysConfig", "SNFolder", inifilepath);
+           p.LeftAHWID   = IniFile.IniReadValue("SysConfig", "LeftAHWID", inifilepath);
+           p.LeftBHWID = IniFile.IniReadValue("SysConfig", "LeftBHWID", inifilepath);
+           p.RightAHWID = IniFile.IniReadValue("SysConfig", "RightAHWID", inifilepath);
+           p.RightBHWID = IniFile.IniReadValue("SysConfig", "RightBHWID", inifilepath);
+           p.LeftASN = IniFile.IniReadValue("SysConfig", "LeftASN", inifilepath);
+           p.LeftBSN = IniFile.IniReadValue("SysConfig", "LeftBSN", inifilepath);
+           p.RightASN = IniFile.IniReadValue("SysConfig", "RightASN", inifilepath);
+           p.RightBSN = IniFile.IniReadValue("SysConfig", "RightBSN", inifilepath);
+ 
+        }
+
+
+
+        private void txtSNFolder_DoubleClick(object sender, EventArgs e)
+        {
+
+            FolderBrowserDialog fbd = new FolderBrowserDialog();
+
+            if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                txtSNFolder.Text = fbd.SelectedPath;
+                p.SNFolder = fbd.SelectedPath;
+                IniFile.IniWriteValue("SysConfig", "SNFolder", p.SNFolder);
+                
+            }
+
+        }
+
+        private void txtSNFolder_TextChanged(object sender, EventArgs e)
+        {
+            p.SNFolder = txtSNFolder.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "SNFolder", p.SNFolder, p.IniFile);
+        }
+
+        private void btnRefreshCam_Click(object sender, EventArgs e)
+        {
+
+            comboCam.Items.Clear();
+            videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+
+            if (videoDevices.Count > 0)
+            {
+
+                for (int i = 0; i < videoDevices.Count; i++)
+                {
+                    comboCam.Items.Add(videoDevices[i].Name);
+                }
+
+                comboCam.SelectedIndex = 0;
+                selectedDeviceIndex = 0;
+            }
+      
+        }
+
+        private void txtLeftASN_TextChanged(object sender, EventArgs e)
+        {
+            p.LeftASN = txtLeftASN.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "LeftASN", p.LeftASN, p.IniFile);
+        }
+
+        private void txtLeftBSN_TextChanged(object sender, EventArgs e)
+        {
+            p.LeftBSN = txtLeftBSN.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "LeftBSN", p.LeftBSN, p.IniFile);
+        }
+
+        private void txtRightASN_TextChanged(object sender, EventArgs e)
+        {
+            p.RightASN = txtRightASN.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "RightASN", p.RightASN , p.IniFile);
+        }
+
+        private void txtRightBSN_TextChanged(object sender, EventArgs e)
+        {
+            p.RightBSN = txtRightBSN.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "RightBSN", p.RightBSN, p.IniFile);
+        }
+
+        private void txtLeftAHWID_TextChanged(object sender, EventArgs e)
+        {
+            p.LeftAHWID = txtLeftAHWID.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "LeftAHWID", p.LeftAHWID, p.IniFile);
+        }
+
+        private void txtLeftBHWID_TextChanged(object sender, EventArgs e)
+        {
+            p.LeftBHWID = txtLeftBHWID.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "LeftBHWID", p.LeftBHWID, p.IniFile);
+        }
+
+        private void txtRightAHWID_TextChanged(object sender, EventArgs e)
+        {
+            p.RightAHWID = txtRightAHWID.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "RightAHWID", p.RightAHWID, p.IniFile);
+        }
+
+        private void txtRightBHWID_TextChanged(object sender, EventArgs e)
+        {
+            p.RightBHWID = txtRightBHWID.Text.Trim();
+            IniFile.IniWriteValue("SysConfig", "RightBHWID", p.RightBHWID, p.IniFile);
+        }
+
+
+        private int  GetCamIndexByHwid(string hwid)
+        {
+            int camindex = -1;
+            for (int i = 0; i < videoDevices.Count; i++)
+            {
+                if (videoDevices[i].MonikerString.ToUpper().Contains(hwid))
+                {
+                    camindex = i;
+                    break;
+                }
+            }
+
+            return camindex;
+        }
+
+
+
+        private void CapAndRead()
+        {
+
+            while (videoSource.IsRunning )
+            {
+                System.Threading.Thread.Sleep(100);
+                try
+                {
+                    CapturePic();
+                    CloseCam();
+                    ReadBarcode();
+                    break;
+                }
+                catch (Exception ex)
+                {
+
+                    UpdateMsg(lstMsg, ex.Message);
+                }
+            }
+        }
+
+
+        private void CapAndRead(string bank)
+        {
+
+            while (videoSource.IsRunning)
+            {
+                System.Threading.Thread.Sleep(100);
+                try
+                {
+                    CapturePic();
+                    CloseCam();
+
+                    switch (bank )
+                    {
+                        case "LA":
+                            ReadBarcode(p.LeftASN);
+                            break;
+                        case "LB":
+                            ReadBarcode(p.LeftBSN);
+                            break;
+                        case "RA":
+                            ReadBarcode(p.RightASN);
+                            break;
+                        case "RB":
+                            ReadBarcode(p.RightBSN);
+                            break;
+                        default:
+                            break;
+
+                    }
+
+
+                    ReadBarcode();
+                    break;
+                }
+                catch (Exception ex)
+                {
+
+                    UpdateMsg(lstMsg, ex.Message);
+                }
+            }
         }
 
     }
